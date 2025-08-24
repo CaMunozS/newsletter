@@ -7,25 +7,20 @@ Requisitos de entorno:
 - AZURE_OPENAI_DEPLOYMENT  (nombre del deployment para chat completions)
 - AZURE_SPEECH_KEY
 - AZURE_SPEECH_REGION
+
+Los directorios de entrada, salida y procesado pueden configurarse mediante
+argumentos de línea de comandos (``--entrada``, ``--salida`` y ``--procesado``).
 """
 
 from __future__ import annotations
 
+import argparse
 import os
 import shutil
 from pathlib import Path
 
 import openai
 import azure.cognitiveservices.speech as speechsdk
-
-
-ENTRADA_DIR = Path("entrada")
-SALIDA_DIR = Path("salida")
-PROCESADO_DIR = Path("procesado")
-
-
-for d in (ENTRADA_DIR, SALIDA_DIR, PROCESADO_DIR):
-    d.mkdir(parents=True, exist_ok=True)
 
 
 def generar_guion(contenido: str) -> str:
@@ -66,18 +61,41 @@ def generar_audio(texto: str, archivo_salida: Path) -> None:
     sintetizador.speak_text_async(texto).get()
 
 
-def procesar_archivo(md_path: Path) -> None:
+def procesar_archivo(md_path: Path, salida_dir: Path, procesado_dir: Path) -> None:
     """Procesa un archivo Markdown: genera guion, audio y mueve el archivo."""
     contenido = md_path.read_text(encoding="utf-8")
     guion = generar_guion(contenido)
-    archivo_audio = SALIDA_DIR / f"{md_path.stem}.mp3"
+    archivo_audio = salida_dir / f"{md_path.stem}.mp3"
     generar_audio(guion, archivo_audio)
-    shutil.move(str(md_path), PROCESADO_DIR / md_path.name)
+    shutil.move(str(md_path), procesado_dir / md_path.name)
+
+
+def parse_args() -> argparse.Namespace:
+    """Devuelve los argumentos de línea de comandos para configurar rutas."""
+    parser = argparse.ArgumentParser(description="Generador de podcast")
+    parser.add_argument(
+        "--entrada", default="entrada", help="Directorio de archivos Markdown"
+    )
+    parser.add_argument(
+        "--salida", default="salida", help="Directorio donde guardar los MP3"
+    )
+    parser.add_argument(
+        "--procesado", default="procesado", help="Directorio de archivos procesados"
+    )
+    return parser.parse_args()
 
 
 def main() -> None:
-    for md_file in ENTRADA_DIR.glob("*.md"):
-        procesar_archivo(md_file)
+    args = parse_args()
+    entrada_dir = Path(args.entrada)
+    salida_dir = Path(args.salida)
+    procesado_dir = Path(args.procesado)
+
+    for d in (entrada_dir, salida_dir, procesado_dir):
+        d.mkdir(parents=True, exist_ok=True)
+
+    for md_file in entrada_dir.glob("*.md"):
+        procesar_archivo(md_file, salida_dir, procesado_dir)
 
 
 if __name__ == "__main__":
